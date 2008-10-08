@@ -1,0 +1,6 @@
+Installing lxrt-comedi
+=======================
+
+To install run "make install" as root 
+
+To remove run "mak uninstall" as root 

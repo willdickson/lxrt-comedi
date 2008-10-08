@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+
+# ------------------------------------------------------------------
+# lxrt-comedi
+#
+# Purpose: Inserts and removes the required kernel modules for
+# programs which require both RTAI/lxrt and comedi. 
+#
+# Author: Will Dickson
+#
+# -------------------------------------------------------------------
+
+# Set Environemt
+source /etc/environment
+
+# Constants
+rtaidir=`rtai-config --module-dir`
+udev_sleep=0.25
+max_cnt=5
+comedi_dev=/dev/comedi0
+daq_card_driver=cb_pcidas
+
+# Print usage information 
+function usage {
+    echo "Usage: `basename $0` [Options] Commmand"
+    echo
+    echo "Inserts and removes the required kernel modules for programs"
+    echo "requiring RTAI lxrt and comedi." 
+    echo 
+    echo "Commmands:"
+    echo "  start   insert RTAI lxrt and comedi modules into kernel"
+    echo "  stop    remove RTAI lxrt and comedi modules from kernel"
+    echo 
+    echo "Options:"
+    echo "  -h,  print help information"  
+    echo "  -d,  specify comedi device"
+}
+
+# Wait while comedi driver in installed
+function waitfor_comedi_dev {
+    cnt=0
+    until test -e comedi_dev || [ $cnt = $max_cnt ]
+    do
+        sleep $udev_sleep
+        let cnt=cnt+1
+    done
+}
+
+# Insert kernel modules
+function install_lxrt {
+    insmod ${rtaidir}/rtai_hal.ko 
+    insmod ${rtaidir}/rtai_lxrt.ko
+    insmod ${rtaidir}/rtai_fifos.ko
+    insmod ${rtaidir}/rtai_sem.ko
+    insmod ${rtaidir}/rtai_mbx.ko
+    insmod ${rtaidir}/rtai_msg.ko
+    insmod ${rtaidir}/rtai_shm.ko
+    modprobe comedi
+    modprobe kcomedilib
+    modprobe comedi_fc
+    insmod ${rtaidir}/rtai_comedi.ko
+    modprobe ${daq_card_driver}
+    waitfor_comedi_dev
+    comedi_config $comedi_dev ${daq_card_driver}
+}
+
+# Remove kernel modules
+function remove_lxrt {
+    modprobe -r ${daq_card_driver}
+    rmmod rtai_comedi
+    modprobe -r comedi_fc
+    modprobe -r kcomedilib
+    modprobe -r comedi
+    rmmod rtai_shm
+    rmmod rtai_msg
+    rmmod rtai_mbx
+    rmmod rtai_sem
+    rmmod rtai_fifos
+    rmmod rtai_lxrt
+    rmmod rtai_hal
+}
+
+# ------------------------------------------------------
+
+# Check number of arguments
+if [ $# -eq 0 ]; then
+    echo Error: too few arguments
+    echo
+    usage
+    exit 1
+fi
+
+# Handle optional arguments
+while getopts hd: OPT; do
+    case $OPT in
+	
+	h)  usage
+	    exit 0
+	    ;;
+	d)  comedi_dev=$OPTARG
+	    echo comedi device = $comedi_dev	    
+	    ;;
+	\?) echo 
+	    usage
+	    exit 1
+	    ;;
+    esac
+done
+
+shift `expr $OPTIND - 1`
+
+# Make sure that one command is given
+if [ $# -eq 0 ]; then
+    echo Error: missing command
+    echo
+    usage
+    exit 1
+elif [ $# -gt 1 ]; then
+    echo Error: too many commands
+    echo
+    usage
+    exit 1
+fi 
+
+# Run command
+case $1 in
+
+    start) install_lxrt
+	   ;;
+    stop)  remove_lxrt
+	   ;;
+    
+    *)     echo Error: uknown command $1 
+	   echo 
+	   usage 
+	   exit 1
+	   ;;
+
+    esac
+exit 0
+ 

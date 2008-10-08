@@ -1,0 +1,17 @@
+lxrt-comedi
+===========
+
+lxrt-comedi is a bash script which inserts the hard real-time RTAI lxrt
+modules as well as the comedi data acquisition modules. 
+
+Usage:
+ 
+ lxrt-comedi start  # inserts modules into kernel
+
+ lxrt-comedi stop   # removes modules from kernel
+
+
+
+
+
+
