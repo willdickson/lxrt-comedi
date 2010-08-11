@@ -42,13 +42,16 @@ source /etc/environment
 rtaidir=`rtai-config --module-dir`
 udev_sleep=0.25
 max_cnt=5
-comedi_dev=/dev/comedi0
-daq_card_driver=cb_pcidas
+num_dev=2
+comedi_dev0=/dev/comedi0
+comedi_dev1=/dev/comedi1
+daq_card_driver0=cb_pcidas
+daq_card_driver1=ni_pcimio
 
 # Print usage information 
 function usage {
     echo "Usage: `basename $0` [Options] Commmand"
-    echo
+    echo 
     echo "Inserts and removes the required kernel modules for programs"
     echo "requiring RTAI lxrt and comedi." 
     echo 
@@ -59,13 +62,14 @@ function usage {
     echo 
     echo "Options:"
     echo "  -h,  print help information"  
-    echo "  -d,  specify comedi device"
+    echo "  -d,  specify number of commedi devices, 1 for one device,"
+    echo "       to for 2 devices."
 }
 
 # Wait while comedi driver in installed
-function waitfor_comedi_dev {
+function waitfor_dev() {
     cnt=0
-    until test -e comedi_dev || [ $cnt = $max_cnt ]
+    until test -e $1 || [ $cnt = $max_cnt ]
     do
         sleep $udev_sleep
         let cnt=cnt+1
@@ -86,15 +90,23 @@ function install_lxrt {
     modprobe kcomedilib
     modprobe comedi_fc
     insmod ${rtaidir}/rtai_comedi.ko
-    modprobe ${daq_card_driver}
-    waitfor_comedi_dev
-    comedi_config $comedi_dev ${daq_card_driver}
+    echo "setting up $comedi_dev0"
+    modprobe ${daq_card_driver0}
+    waitfor_dev comedi_dev0
+    comedi_config $comedi_dev0 ${daq_card_driver0}
+    if [ $num_dev = 2 ]; then
+        echo "setting up $comedi_dev1"
+        modprobe ${daq_card_driver1}
+        waitfor_dev comedi_dev1
+        comedi_config $comedi_dev1 ${daq_card_driver1}
+    fi
 }
 
 # Remove kernel modules
 function remove_lxrt {
     echo "removing lxrt-comedi"
-    modprobe -r ${daq_card_driver}
+    modprobe -r ${daq_card_driver0}
+    modprobe -r ${daq_card_driver1}
     rmmod rtai_comedi
     modprobe -r comedi_fc
     modprobe -r kcomedilib
@@ -125,9 +137,9 @@ while getopts hd: OPT; do
 	h)  usage
 	    exit 0
 	    ;;
-	d)  comedi_dev=$OPTARG
-	    echo comedi device = $comedi_dev	    
-	    ;;
+    d)  num_dev=$OPTARG
+        echo "number of devices = $num_dev"
+        ;;
 	\?) echo 
 	    usage
 	    exit 1
